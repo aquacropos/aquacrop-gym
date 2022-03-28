@@ -50,6 +50,7 @@ def evaluate_agent(
     test_agent,
     env_class,
     env_default_config,
+    stable_baselines=False,
 ):
     
     global proftrain,proftest,timesteps,global_best
@@ -69,8 +70,14 @@ def evaluate_agent(
         hidden_state=[np.zeros(256, np.float32),
                np.zeros(256, np.float32)]
         while not done:
-            # action,hidden_state,logits = test_agent.compute_action(state,hidden_state)
-            action = test_agent.compute_action(state)
+            if not stable_baselines:
+
+                try:
+                    action,hidden_state,logits = test_agent.compute_action(state,hidden_state)
+                except:
+                    action = test_agent.compute_action(state)
+            else:
+                action, _states = test_agent.predict(state, deterministic=True)
             state, reward, done, _ = eval_env.step(action)
             cumulative_reward += reward
 
@@ -82,4 +89,98 @@ def evaluate_agent(
             
 
     return train_reward/70,test_reward/30
+
+def evaluate_agent_single_year(
+    test_agent,
+    env_class,
+    env_default_config,
+    sim_year,
+    stable_baselines=False,
+):
+    
+    global proftrain,proftest,timesteps,global_best
+    
+    envconfig=env_default_config.copy()
+    envconfig['year1']=sim_year
+    envconfig['year2']=sim_year
+    eval_env = env_class(envconfig)
+
+    state = eval_env.reset()
+
+    done = False
+    cumulative_reward = 0
+    hidden_state=[np.zeros(256, np.float32),
+            np.zeros(256, np.float32)]
+    while not done:
+        if not stable_baselines:
+
+            try:
+                action,hidden_state,logits = test_agent.compute_action(state,hidden_state)
+            except:
+                action = test_agent.compute_action(state)
+        else:
+            action, _states = test_agent.predict(state, deterministic=True)
+        state, reward, done, _ = eval_env.step(action)
+        cumulative_reward += reward
+
+
+    return cumulative_reward
+
+def get_mean_std(
+    smt,
+    env_class,
+    env_default_config,
+    stable_baselines=False,
+):
+
+    class FixedThresholdAgent():
+        def __init__(self,smts):
+            self.smts=smts # gievn as fraction
+
+        
+        def compute_action(self,obs):
+            "default observation set"
+
+            return (self.smts*2)-1
+
+    test_agent = FixedThresholdAgent(smt)
+    all_states=[]
+    
+    train_reward=0
+    test_reward=0
+    for i in range(70):
+        envconfig=env_default_config.copy()
+        envconfig['year1']=i+1
+        envconfig['year2']=i+1
+        envconfig['normalize_obs']=False
+        eval_env = env_class(envconfig)
+
+        state = eval_env.reset()
+
+        done = False
+        cumulative_reward = 0
+        hidden_state=[np.zeros(256, np.float32),
+               np.zeros(256, np.float32)]
+        while not done:
+            if not stable_baselines:
+                try:
+                    action,hidden_state,logits = test_agent.compute_action(state,hidden_state)
+                except:
+                    action = test_agent.compute_action(state)
+            else:
+                action, _states = test_agent.predict(state, deterministic=True)
+            state, reward, done, _ = eval_env.step(action)
+            cumulative_reward += reward
+
+            all_states.append(state)
+        if i<70:
+            train_reward+=cumulative_reward
+        else:
+            test_reward+=cumulative_reward
+            
+
+    print( train_reward/70)
+    print(np.vstack(all_states).shape)
+
+    return np.vstack(all_states).mean(axis=0),np.vstack(all_states).std(axis=0)
 

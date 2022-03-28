@@ -12,6 +12,7 @@ import numpy as np
 
 
 nebraska_maize_config = dict(
+    name='nebraska_maize',
     gendf=None, # generated and processed weather dataframe
     year1=1, # lower bolund on train years
     year2=70, # upper bound on train years
@@ -32,6 +33,63 @@ nebraska_maize_config = dict(
     action_set='smt4',
     forecast_lead_time=7, # number of days perfect forecast if using observation set x
     evaluation_run=False,
+    CO2conc=363.8,
+    simcalyear=1995,
+
+)
+
+cordoba_cotton_config = dict(
+    name='cordoba_cotton', 
+    gendf=None, # generated and processed weather dataframe
+    year1=1, # lower bolund on train years
+    year2=70, # upper bound on train years
+    crop='Cotton', # crop type (str or CropClass)
+    planting_date='04/25',
+    soil='SandyLoam', # soil type (str or SoilClass)
+    dayshift=1, # maximum number of days to simulate at start of season (ramdomly drawn)
+    include_rain=True, # maximum number of days to simulate at start of season (ramdomly drawn)
+    days_to_irr=7, # number of days (sim steps) to take between irrigation decisions
+    max_irr=25, # maximum irrigation depth per event
+    init_wc=InitWCClass(wc_type='Pct',value=[70]), # initial water content
+    crop_price=330., # euro/TONNE
+    irrigation_cost = 0.3,# euro/HA-MM
+    fixed_cost = 0, # gross margin
+    best=np.ones(1000)*-1000, # current best profit for each year
+    observation_set='default',
+    normalize_obs=True,
+    action_set='smt4',
+    forecast_lead_time=7, # number of days perfect forecast if using observation set x
+    evaluation_run=False,
+    CO2conc=363.8,
+    simcalyear=1995,
+
+)
+
+california_tomato_config = dict(
+    name='california_tomato', 
+    gendf=None, # generated and processed weather dataframe
+    year1=1, # lower bolund on train years
+    year2=70, # upper bound on train years
+    crop='Tomato', # crop type (str or CropClass)
+    planting_date='05/01',
+    soil='Loam', # soil type (str or SoilClass)
+    dayshift=1, # maximum number of days to simulate at start of season (ramdomly drawn)
+    include_rain=True, # maximum number of days to simulate at start of season (ramdomly drawn)
+    days_to_irr=7, # number of days (sim steps) to take between irrigation decisions
+    max_irr=25, # maximum irrigation depth per event
+    init_wc=InitWCClass(wc_type='Pct',value=[70]), # initial water content
+    crop_price=81., # euro/TONNE
+    irrigation_cost = 0.5,# euro/HA-MM
+    fixed_cost = 0, # gross margin
+    best=np.ones(1000)*-1000, # current best profit for each year
+    observation_set='default',
+    normalize_obs=True,
+    action_set='smt4',
+    forecast_lead_time=7, # number of days perfect forecast if using observation set x
+    evaluation_run=False,
+    CO2conc=363.8,
+    simcalyear=1995,
+
 )
 
 class CropEnv(gym.Env):
@@ -58,6 +116,8 @@ class CropEnv(gym.Env):
         self.CROP_PRICE=config["crop_price"]
         self.IRRIGATION_COST=config["irrigation_cost"] 
         self.FIXED_COST = config["fixed_cost"]
+        self.planting_month = int(config['planting_date'].split('/')[0])
+        self.planting_day = int(config['planting_date'].split('/')[1])
 
         crop = config['crop']        
         if isinstance(crop,str):
@@ -73,10 +133,14 @@ class CropEnv(gym.Env):
             assert isinstance(soil,SoilClass), "soil needs to be 'str' or 'SoilClass'"
             self.soil=soil
      
+        self.name=config["name"]
 
         self.best=config["best"]*1
         self.total_best=config["best"]*1
         self.tsteps=0
+
+        self.simcalyear=config["simcalyear"]
+        self.CO2conc=config["CO2conc"]
         
     
         self.observation_set=config["observation_set"]
@@ -84,23 +148,44 @@ class CropEnv(gym.Env):
         self.action_set=config["action_set"]
         self.forecast_lead_time=config["forecast_lead_time"]
 
+        if self.name=='cordoba_cotton':
+            self.mean=np.array([1.5416185e+01, 7.2023120e+00, 4.8906943e-01, 8.8000000e+01,
+                                3.0104053e+02, 5.2842396e-01, 4.6625201e+02, 7.3104918e-01,
+                                6.6835184e+00, 5.9939682e+01, 6.0787720e+02,0,0,0,0], dtype=np.float32)
+        
+            self.std= np.array([8.9190435e+00, 1.6620870e+00, 2.2383636e-01, 4.9937759e+01,
+                                2.2935059e+02, 3.7969297e-01, 4.3991928e+02, 1.8572671e+00,
+                                1.3334695e+00, 5.1132626e+01, 3.5932901e+02, 1,1,1,1], dtype=np.float32)
+
+        elif self.name =='nebraska_maize':
+            self.mean=np.array([1.5297709e+01, 6.7175574e+00, 4.3340582e-01, 6.7000000e+01,
+                                1.2093769e+02, 6.6166919e-01, 1.2499705e+03, 2.2275937e+00,
+                                5.9314189e+00, 1.6487059e+02, 3.8849683e+02,0,0,0,0], dtype=np.float32)
+        
+            self.std= np.array([8.9132442e+00, 1.2556748e+00, 2.2046985e-01, 3.7815342e+01,
+                                7.7468857e+01, 3.7401891e-01, 1.0447410e+03, 2.7044525e+00,
+                                9.5832235e-01, 1.0854125e+02, 2.3682135e+02,  1,1,1,1], dtype=np.float32)
+
+        elif self.name =='california_tomato':
+            self.mean=np.array([1.52500000e+01, 6.50000000e+00, 3.15283656e-01, 6.03125000e+01,
+                                3.07615387e+02, 5.10523260e-01, 4.98117859e+02, 1.24298476e-01,
+                                6.86775160e+00, 1.21339521e+01, 4.01664978e+02, 0,0,0,0], dtype=np.float32)
+        
+            self.std= np.array([8.2120342e+00, 1.1180340e+00, 1.6626830e-01, 3.1970348e+01,
+                                2.0187964e+02, 2.8188160e-01, 4.2335272e+02, 5.5605030e-01,
+                                6.5448678e-01, 1.5673932e+01, 2.2597920e+02, 1,1,1,1], dtype=np.float32)
+
+
         if self.observation_set in ['default','forecast']:
                 # with year sum
-            self.mean=np.array([1.57299742e+01, 6.94973948e+00, 5.78204154e-01, 7.45930868e+01,
-                5.67243665e+01, 4.45406029e-01, 8.44234541e+02, 2.44740967e+00,
-                2.15764884e+00, 5.88546047e+00, 1.86397289e+02, 4.36919733e+02])
-        
-            self.std= np.array([8.64142443e+00, 1.36184203e+00, 2.26393775e-01, 4.20119480e+01,
-                4.92215209e+01, 3.53966438e-01, 8.06799001e+02, 1.04439229e+00,
-                2.64194311e+00, 9.92729799e-01, 1.17995847e+02, 2.59921570e+02])
 
-            self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(12,), dtype=float)
+            self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(15,), dtype=np.float32)
         
         if self.action_set=='smt4':
-            self.action_space = spaces.Box(low=-1., high=1., shape=(4,), dtype=float)
+            self.action_space = spaces.Box(low=-1., high=1., shape=(4,), dtype=np.float32)
 
         elif self.action_set=='depth':
-            self.action_space = spaces.Box(low=-1., high=1., shape=(1,), dtype=float)
+            self.action_space = spaces.Box(low=-1., high=1., shape=(1,), dtype=np.float32)
     
         elif self.action_set=='depth_discreet':
             self.action_depths=[0,10,20,30,40,50]
@@ -127,18 +212,20 @@ class CropEnv(gym.Env):
 
             sim_year=int(np.random.choice(np.arange(self.year1,self.year2+1)))
             self.wdf = self.gendf[self.gendf.simyear==sim_year].drop('simyear',axis=1)
+            self.chosen=sim_year*1
 
         else:
 
             self.wdf = self.gendf[self.gendf.simyear==self.year1].drop('simyear',axis=1)
+            self.chosen=self.year1*1
 
             
-        month = 5
-        day=1
-        self.model = AquaCropModel(f'{2018}/{month}/{day}',f'{2018}/12/31',
+        month = self.planting_month
+        day=self.planting_day
+        self.model = AquaCropModel(f'{self.simcalyear}/{month}/{day}',f'{self.simcalyear}/12/31',
                                 self.wdf,self.soil,self.crop,
                                 IrrMngt=IrrMngtClass(IrrMethod=5),
-                                InitWC=self.init_wc,)
+                                InitWC=self.init_wc,CO2conc=self.CO2conc)
         self.model.initialize()
 
         if not self.include_rain:
@@ -177,6 +264,8 @@ class CropEnv(gym.Env):
         end = start+self.forecast_lead_time
         forecast2 = self.model.weather[start:end,2:4].mean(axis=0).flatten()
         
+        # state 
+
         # month and day
         month = (self.model.ClockStruct.TimeSpan[self.model.ClockStruct.TimeStepCounter]).month
         day = (self.model.ClockStruct.TimeSpan[self.model.ClockStruct.TimeStepCounter]).day
@@ -187,6 +276,11 @@ class CropEnv(gym.Env):
         elif self.observation_set=='forecast':
             forecast = np.concatenate([forecast2,forecastsum]).flatten()
 
+
+        gs = np.clip(int(self.model.InitCond.GrowthStage)-1,0,4)
+        gs_1h = np.zeros(4)
+        gs_1h[gs]=1
+
         if self.observation_set in ['default','forecast']:
             obs=np.array([
                         day,
@@ -196,11 +290,12 @@ class CropEnv(gym.Env):
                         InitCond.IrrCum, # irrigation used so far
                         InitCond.CC,
                         InitCond.B,
-                        InitCond.GrowthStage,
+                        # InitCond.GrowthStage,
                         
                         ]
                         +[f for f in forecast]
-                        )
+                        +[g for g in gs_1h]
+                        , dtype=np.float32).reshape(-1)
 
         else:
             assert 1==2, 'no obs set'
@@ -217,15 +312,28 @@ class CropEnv(gym.Env):
         take in binary action [   irrigation yes (1) or no (0)  ]
         and irrigate to field capacity or max irrigation
         """
-        if self.action_set in ['depth_discreet','binary']:
+        if self.action_set in ['depth_discreet']:
 
             depth = self.action_depths[int(action)]
 
             self.model.ParamStruct.IrrMngt.depth = depth
 
+        elif self.action_set in ['binary']:
 
-#         depths=np.ones(7)*(action+1)*25
+            if action == 1:
+                # depth = np.clip(self.model.InitCond.Depletion,0,self.max_irr)
+                depth = self.max_irr
+            else:
+                depth=0
+            
+            self.model.ParamStruct.IrrMngt.depth = depth
+
+
+        elif self.action_set in ['depth']:
+
+            depth=(action[0]+1)*12.5
 #         self.model.ParamStruct.IrrMngt.depth = np.clip(depths[0],0,25)
+            self.model.ParamStruct.IrrMngt.depth = depth
 
 
         elif self.action_set=='smt4':
@@ -236,10 +344,12 @@ class CropEnv(gym.Env):
         # new_smt+=np.array([0.58709859, 0.66129679, 0.34608978, 0.10645481])*100
 
         start_day = self.model.InitCond.DAP
-                
+        start_y = self.model.InitCond.Y*1.
+        start_irr = self.model.InitCond.IrrCum*1.
+
         for i in range(self.days_to_irr):
             
-            if self.action_set in ['depth_discreet','binary']:
+            if self.action_set in ['depth_discreet','binary','depth']:
 
                 self.model.step()
                 self.model.ParamStruct.IrrMngt.depth = 0
@@ -279,6 +389,9 @@ class CropEnv(gym.Env):
             if (now_day >0) and (now_day<start_day):
                 break
  
+        # step_reward = (self.CROP_PRICE*(max(self.model.InitCond.Y-start_y,0)) - self.IRRIGATION_COST*(max(self.model.InitCond.IrrCum-start_irr,0)))
+        
+        # - self.FIXED_COST )
  
         done = self.model.ClockStruct.ModelTermination
         
@@ -294,16 +407,18 @@ class CropEnv(gym.Env):
             end_reward = (self.CROP_PRICE*self.model.Outputs.Final['Yield (tonne/ha)'].mean()
                         - self.IRRIGATION_COST*self.model.Outputs.Final['Seasonal irrigation (mm)'].mean()
                         - self.FIXED_COST )
+
+            
             
             self.reward=end_reward
  
-            rew = end_reward - self.total_best[self.chosen-1] 
+            rew = end_reward - self.best[self.chosen-1] 
             # rew = end_reward - global_best[self.chosen-1] 
             if rew>0:
                 self.best[self.chosen-1]=end_reward
             if self.tsteps%100==0:
                 self.total_best=self.best*1
-                print(self.tsteps,self.best[:self.year2].mean())
+                print(self.chosen,self.tsteps,self.best[:self.year2].mean())
 
             if self.eval:
                 reward=end_reward*1000
@@ -355,3 +470,71 @@ class CropEnv(gym.Env):
         self.mean=mean
         self.std=std
 
+
+import copy
+
+class OptimCropEnv(gym.Env):
+
+    def __init__(self, config):
+        super(OptimCropEnv, self).__init__()
+
+
+        self.config=copy.deepcopy(config)
+
+        self.observation_set=config["observation_set"]
+        self.normalize_obs = config["normalize_obs"]
+        self.action_set=config["action_set"]
+
+
+        if self.observation_set in ['default','forecast']:
+                # with year sum
+
+            self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(15,), dtype=np.float32)
+        
+        if self.action_set=='smt4':
+            self.action_space = spaces.Box(low=-1., high=1., shape=(4,), dtype=np.float32)
+
+        elif self.action_set=='depth':
+            self.action_space = spaces.Box(low=-1., high=1., shape=(1,), dtype=np.float32)
+
+        elif self.action_set=='depth_discreet':
+            self.action_depths=[0,10,20,30,40,50]
+            self.action_space = spaces.Discrete(len(self.action_depths))    
+
+        elif self.action_set=='binary':
+            self.action_depths=[0,self.max_irr]
+            self.action_space = spaces.Discrete(len(self.action_depths))    
+
+    def step(self, action):
+
+
+
+        state, reward, yeardone, _ = self.eval_env.step(action)
+        if yeardone and self.config['year1']==70:
+            done=True
+        elif yeardone:
+            self.config['year1']+=1
+            self.config['year2']+=1
+            self.eval_env = CropEnv(self.config)
+            state = self.eval_env.reset()
+
+            done=False
+        else:
+            done=False
+
+
+        return state, (reward/70)/1000, done, _
+
+
+    def reset(self):
+
+        self.config['year1']=1
+        self.config['year2']=1
+        self.config['evaluation_run']=True
+        self.eval_env = CropEnv(self.config)
+
+        self.reward=0
+
+        obs = self.eval_env.reset()
+
+        return obs
