@@ -26,12 +26,12 @@ Environment to train and compare irrigation scheduling strategies with AquaCrop-
 
 | Agent type | Optimizer/DRL algo | Observation set | Action set | Train profit | Test profit | Code link |
 | --- | --- | ----------- |--- | ----------- |--- | ----------- |
-| Fixed soil-moisture thresholds | Differential evolution | default | smt4`*` | 356 | 362 |
+| Fixed soil-moisture thresholds | Differential evolution | default | smt4`*` | 297.5738241306874 | 300.64652664197314 |
 | DRL | PPO | default | smt4 | 378 | 385 | fcnet=[256]*2, 7 day decision, time=20mins, eps=10k, logdir=PPO_CropEnv_2022-02-28_16-20-26f7wnoze2 | na |
 
 
 
-
+[0.73600835, 0.64358839, 0.36575042, 0.12949905]
 
 
 

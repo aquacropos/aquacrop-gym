@@ -70,7 +70,7 @@ california_tomato_config = dict(
     gendf=None, # generated and processed weather dataframe
     year1=1, # lower bolund on train years
     year2=70, # upper bound on train years
-    crop='Tomato', # crop type (str or CropClass)
+    crop=CropClass('Tomato',PlantingDate='05/01',PlantPop=100_000), # crop type (str or CropClass)
     planting_date='05/01',
     soil='Loam', # soil type (str or SoilClass)
     dayshift=1, # maximum number of days to simulate at start of season (ramdomly drawn)
@@ -78,8 +78,8 @@ california_tomato_config = dict(
     days_to_irr=7, # number of days (sim steps) to take between irrigation decisions
     max_irr=25, # maximum irrigation depth per event
     init_wc=InitWCClass(wc_type='Pct',value=[70]), # initial water content
-    crop_price=81., # euro/TONNE
-    irrigation_cost = 0.5,# euro/HA-MM
+    crop_price=81., # $/TONNE
+    irrigation_cost = 0.5,# $/HA-MM
     fixed_cost = 0, # gross margin
     best=np.ones(1000)*-1000, # current best profit for each year
     observation_set='default',
@@ -158,13 +158,30 @@ class CropEnv(gym.Env):
                                 1.3334695e+00, 5.1132626e+01, 3.5932901e+02, 1,1,1,1], dtype=np.float32)
 
         elif self.name =='nebraska_maize':
-            self.mean=np.array([1.5297709e+01, 6.7175574e+00, 4.3340582e-01, 6.7000000e+01,
-                                1.2093769e+02, 6.6166919e-01, 1.2499705e+03, 2.2275937e+00,
-                                5.9314189e+00, 1.6487059e+02, 3.8849683e+02,0,0,0,0], dtype=np.float32)
-        
-            self.std= np.array([8.9132442e+00, 1.2556748e+00, 2.2046985e-01, 3.7815342e+01,
-                                7.7468857e+01, 3.7401891e-01, 1.0447410e+03, 2.7044525e+00,
-                                9.5832235e-01, 1.0854125e+02, 2.3682135e+02,  1,1,1,1], dtype=np.float32)
+            if self.observation_set=='default':
+                self.mean=np.array([1.5068182e+01, 6.7727275e+00, 4.4094244e-01, 6.8477272e+01,
+        1.2823775e+02, 6.5737528e-01, 1.2552679e+03, 2.2174017e+00,
+        5.9947405e+00, 1.6800790e+02, 4.0232184e+02, 2.2348366e+00,
+        6.0216384e+00,
+        0,0,0,0], dtype=np.float32)
+            
+                self.std= np.array([8.8430672e+00, 1.2588633e+00, 2.1731496e-01, 3.8057072e+01,
+        8.1543999e+01, 3.7534222e-01, 1.0305146e+03, 2.6845067e+00,
+        9.4314069e-01, 1.0874526e+02, 2.4056461e+02, 6.7858462e+00,
+        1.6485872e+00, 
+        1,1,1,1], dtype=np.float32)
+
+
+            else:
+                self.mean=np.array([1.5068182e+01, 6.7727275e+00, 4.4094244e-01, 6.8477272e+01,
+        1.2823775e+02, 6.5737528e-01, 1.2552679e+03, 2.2174017e+00,
+        5.9947405e+00, 1.6800790e+02, 4.0232184e+02, 2.2348366e+00,
+        6.0216384e+00, 2.1604528e+00, 5.9982104e+00,0,0,0,0], dtype=np.float32)
+            
+                self.std= np.array([8.8430672e+00, 1.2588633e+00, 2.1731496e-01, 3.8057072e+01,
+        8.1543999e+01, 3.7534222e-01, 1.0305146e+03, 2.6845067e+00,
+        9.4314069e-01, 1.0874526e+02, 2.4056461e+02, 6.7858462e+00,
+        1.6485872e+00, 2.6178448e+00, 9.2774606e-01,1,1,1,1], dtype=np.float32)
 
         elif self.name =='california_tomato':
             self.mean=np.array([1.52500000e+01, 6.50000000e+00, 3.15283656e-01, 6.03125000e+01,
@@ -175,11 +192,18 @@ class CropEnv(gym.Env):
                                 2.0187964e+02, 2.8188160e-01, 4.2335272e+02, 5.5605030e-01,
                                 6.5448678e-01, 1.5673932e+01, 2.2597920e+02, 1,1,1,1], dtype=np.float32)
 
+        # self.mean=0
+        # self.std=1
 
-        if self.observation_set in ['default','forecast']:
-                # with year sum
 
+        if self.observation_set in ['default',]:
+            self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(17,), dtype=np.float32)
+        
+        elif self.observation_set in ['basic',]:
             self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(15,), dtype=np.float32)
+        
+        if self.observation_set in ['forecast',]:
+            self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(19,), dtype=np.float32)
         
         if self.action_set=='smt4':
             self.action_space = spaces.Box(low=-1., high=1., shape=(4,), dtype=np.float32)
@@ -188,7 +212,7 @@ class CropEnv(gym.Env):
             self.action_space = spaces.Box(low=-1., high=1., shape=(1,), dtype=np.float32)
     
         elif self.action_set=='depth_discreet':
-            self.action_depths=[0,10,20,30,40,50]
+            self.action_depths=[0,2.5,5,7.5,10,12.5,15,17.5,20,22.5,25]
             self.action_space = spaces.Discrete(len(self.action_depths))    
 
         elif self.action_set=='binary':
@@ -196,6 +220,7 @@ class CropEnv(gym.Env):
             self.action_space = spaces.Discrete(len(self.action_depths))    
 
             
+
                 
     def states(self):
         return dict(type='float', shape=(self.observation_space.shape[0],))
@@ -235,7 +260,8 @@ class CropEnv(gym.Env):
             dayshift=np.random.randint(1,self.dayshift+1)
             self.model.step(dayshift)
         
- 
+        self.irr_sched=[]
+
         return self.get_obs(self.model.InitCond)
  
     def get_obs(self,InitCond):
@@ -259,6 +285,10 @@ class CropEnv(gym.Env):
         start2 = max(0,self.model.ClockStruct.TimeStepCounter -InitCond.DAP)
         forecastsum = self.model.weather[start2:end,2:4].sum(axis=0).flatten()
 
+        #  yesterday precipitation and ETo and irr
+        start2 = max(0,self.model.ClockStruct.TimeStepCounter-1)
+        forecast_lag1 = self.model.weather[start2:end,2:4].flatten()
+
         # calculate mean daily precipitation and ETo for next N days
         start = self.model.ClockStruct.TimeStepCounter
         end = start+self.forecast_lead_time
@@ -270,16 +300,23 @@ class CropEnv(gym.Env):
         month = (self.model.ClockStruct.TimeSpan[self.model.ClockStruct.TimeStepCounter]).month
         day = (self.model.ClockStruct.TimeSpan[self.model.ClockStruct.TimeStepCounter]).day
         
-        if self.observation_set=='default':
-            forecast = np.concatenate([forecast1,forecastsum]).flatten()
+        if self.observation_set in ['default','basic']:
+            forecast = np.concatenate([forecast1,forecastsum,forecast_lag1]).flatten()
         
         elif self.observation_set=='forecast':
-            forecast = np.concatenate([forecast2,forecastsum]).flatten()
+            forecast = np.concatenate([forecast1,forecastsum,forecast_lag1,forecast2,]).flatten()
 
 
         gs = np.clip(int(self.model.InitCond.GrowthStage)-1,0,4)
         gs_1h = np.zeros(4)
         gs_1h[gs]=1
+
+        # ir_sched = np.zeros(7)
+        # for idx,ir in enumerate(reversed(self.irr_sched)):
+        #     ir_sched[idx] = ir
+
+        #     if idx==6:
+        #         break
 
         if self.observation_set in ['default','forecast']:
             obs=np.array([
@@ -290,11 +327,31 @@ class CropEnv(gym.Env):
                         InitCond.IrrCum, # irrigation used so far
                         InitCond.CC,
                         InitCond.B,
+                        # gs,
                         # InitCond.GrowthStage,
                         
                         ]
                         +[f for f in forecast]
+                        # +[ir for ir in ir_sched]
                         +[g for g in gs_1h]
+
+                        , dtype=np.float32).reshape(-1)
+
+        elif self.observation_set in ['basic']:
+
+            obs=np.array([
+                        day,
+                        month,
+                        dep, # root-zone depletion
+                        InitCond.DAP,#days after planting
+                        InitCond.IrrCum, # irrigation used so far
+                        gs,
+                        # InitCond.GrowthStage,
+                        
+                        ]
+                        +[f for f in forecast]
+                        # +[g for g in gs_1h]
+                        # +[ir for ir in ir_sched]
                         , dtype=np.float32).reshape(-1)
 
         else:
@@ -350,7 +407,7 @@ class CropEnv(gym.Env):
         for i in range(self.days_to_irr):
             
             if self.action_set in ['depth_discreet','binary','depth']:
-
+                self.irr_sched.append(self.model.ParamStruct.IrrMngt.depth)
                 self.model.step()
                 self.model.ParamStruct.IrrMngt.depth = 0
             
@@ -377,9 +434,10 @@ class CropEnv(gym.Env):
                         depth=0
     
                 self.model.ParamStruct.IrrMngt.depth = depth
-    
+                self.irr_sched.append(self.model.ParamStruct.IrrMngt.depth)
+
                 self.model.step()
-    
+
   
             # termination conditions
             if self.model.ClockStruct.ModelTermination:
@@ -421,6 +479,7 @@ class CropEnv(gym.Env):
                 print(self.chosen,self.tsteps,self.best[:self.year2].mean())
 
             if self.eval:
+                # print('yield',self.model.Outputs.Final['Yield (tonne/ha)'].mean())
                 reward=end_reward*1000
 
             else:

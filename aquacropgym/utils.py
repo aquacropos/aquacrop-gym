@@ -73,9 +73,10 @@ def evaluate_agent(
             if not stable_baselines:
 
                 try:
-                    action,hidden_state,logits = test_agent.compute_action(state,hidden_state)
-                except:
                     action = test_agent.compute_action(state)
+                except:
+                    action,hidden_state,logits = test_agent.compute_action(state,hidden_state)
+
             else:
                 action, _states = test_agent.predict(state, deterministic=True)
             state, reward, done, _ = eval_env.step(action)

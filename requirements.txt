@@ -1,0 +1,5 @@
+aquacrop==1.1.0
+aquacropeto==0.1.0
+gym==0.19.0
+numpy==1.21.2
+pandas==1.2.1
