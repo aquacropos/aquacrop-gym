@@ -52,8 +52,12 @@ def evaluate_agent(
     env_default_config,
     stable_baselines=False,
 ):
+    """
+    evaluate trained agent against full 70 train and 30 testing years
+    return train and test profit
     
-    global proftrain,proftest,timesteps,global_best
+    """
+    
     
     train_reward=0
     test_reward=0
@@ -73,9 +77,9 @@ def evaluate_agent(
             if not stable_baselines:
 
                 try:
-                    action = test_agent.compute_action(state)
+                    action = test_agent.compute_single_action(state,explore=False)
                 except:
-                    action,hidden_state,logits = test_agent.compute_action(state,hidden_state)
+                    action,hidden_state,logits = test_agent.compute_single_action(state,hidden_state,explore=False)
 
             else:
                 action, _states = test_agent.predict(state, deterministic=True)
